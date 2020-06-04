@@ -42,5 +42,12 @@ func checkConfig(cfg *config) error {
 	if cfg.Routes == nil {
 		return errors.New("configure routes")
 	}
+	if cfg.Host == "" {
+		hostname, err := os.Hostname()
+		if err != nil {
+			return err
+		}
+		cfg.Host = hostname
+	}
 	return nil
 }
