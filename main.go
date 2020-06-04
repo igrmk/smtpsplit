@@ -20,9 +20,9 @@ func checkErr(err error) {
 }
 
 type worker struct {
-	cfg     *config
-	tls     *tls.Config
-	timeout time.Duration
+	cfg       *config
+	tlsConfig *tls.Config
+	timeout   time.Duration
 }
 
 func newWorker() *worker {
@@ -36,11 +36,10 @@ func newWorker() *worker {
 		timeout: timeout,
 	}
 	if cfg.Certificate != "" {
-		tls, err := loadTLS(cfg.Certificate, cfg.CertificateKey)
+		tlsConfig, err := loadTLS(cfg.Certificate, cfg.CertificateKey)
 		checkErr(err)
-		w.tls = tls
+		w.tlsConfig = tlsConfig
 	}
-
 	return w
 }
 
@@ -66,7 +65,7 @@ func envelopeFactory(
 			routes:        routes,
 			timeout:       timeout,
 			host:          host,
-			tls:           tls,
+			tlsConfig:           tls,
 			debug:         debug,
 		}, nil
 	}
@@ -91,17 +90,17 @@ func main() {
 	w := newWorker()
 	w.logConfig()
 
-	smtp := &smtpd.Server{
+	server := &smtpd.Server{
 		Hostname:     w.cfg.Host,
 		Addr:         w.cfg.ListenAddress,
-		OnNewMail:    envelopeFactory(w.cfg.Routes, w.timeout, w.cfg.Host, w.tls, w.cfg.Debug),
-		TLSConfig:    w.tls,
+		OnNewMail:    envelopeFactory(w.cfg.Routes, w.timeout, w.cfg.Host, w.tlsConfig, w.cfg.Debug),
+		TLSConfig:    w.tlsConfig,
 		Log:          lsmtpd,
 		ReadTimeout:  w.timeout,
 		WriteTimeout: w.timeout,
 	}
 	go func() {
-		err := smtp.ListenAndServe()
+		err := server.ListenAndServe()
 		checkErr(err)
 	}()
 	signals := make(chan os.Signal, 16)

@@ -27,7 +27,7 @@ type env struct {
 	size              *int
 	timeout           time.Duration
 	host              string
-	tls               *tls.Config
+	tlsConfig         *tls.Config
 	debug             bool
 }
 
@@ -146,7 +146,7 @@ func sendHello(e *env, s *sess) error {
 
 func startTLS(e *env, s *sess) error {
 	if ok, _ := s.client.Extension("STARTTLS"); ok {
-		if err := s.client.StartTLS(e.tls); err != nil {
+		if err := s.client.StartTLS(e.tlsConfig); err != nil {
 			lerr("could not send START TLS, %v", err)
 			return notResponding
 		}

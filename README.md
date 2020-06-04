@@ -4,13 +4,13 @@ smtpsplit
 [![Build Status](https://travis-ci.org/igrmk/smtpsplit.png)](https://travis-ci.org/igrmk/smtpsplit)
 [![GoReportCard](http://goreportcard.com/badge/igrmk/smtpsplit)](http://goreportcard.com/report/igrmk/smtpsplit)
 
-This is simple SMTP router and splitter. It routes the incoming traffic depending on a recepient domain.
+This is simple SMTP router and splitter. It routes the incoming traffic depending on a recipient domain.
 It supports STARTTLS for both incoming and outgoing connections.
 
 Usage
 -----
 
-1. Create a configuration file. Here is an example
+1. Create a configuration file. Here is an example:
    ```
    {
        "listen_address": ":25",
