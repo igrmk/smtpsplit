@@ -113,8 +113,8 @@ func (e *env) initSessions() error {
 		}
 	}
 	sessions := make(map[string]*sess)
-	for s, domain := range addresses {
-		conn, err := net.DialTimeout("tcp", s, e.timeout)
+	for addr, domain := range addresses {
+		conn, err := net.DialTimeout("tcp", addr, e.timeout)
 		if err != nil {
 			lerr("could not dial, %v", err)
 			return notResponding
