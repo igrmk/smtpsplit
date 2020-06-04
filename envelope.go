@@ -121,17 +121,22 @@ func (e *env) sendToAll(text string, code string) error {
 }
 
 func checkOK(r *bufio.Reader, code string) error {
-	s, err := r.ReadString('\n')
-	if err != nil {
-		lerr("could not read data, %v", err)
-		return smtpd.SMTPError("441 Server is not responding")
+	for {
+		s, err := r.ReadString('\n')
+		if err != nil {
+			lerr("could not read data, %v", err)
+			return smtpd.SMTPError("441 Server is not responding")
+		}
+		ldbg("got: %q", s)
+		if strings.HasPrefix(s, code+"-") {
+			continue
+		}
+		if !strings.HasPrefix(s, code) {
+			lerr("server returned error %q", s)
+			return smtpd.SMTPError(s)
+		}
+		return nil
 	}
-	ldbg("got: %q", s)
-	if !strings.HasPrefix(s, code) {
-		lerr("server returned error %q", s)
-		return smtpd.SMTPError(s)
-	}
-	return nil
 }
 
 func (e *env) sendFrom() error {
