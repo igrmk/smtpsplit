@@ -63,8 +63,9 @@ func (e *env) connect() error {
 			return smtpd.SMTPError("441 Server is not responding")
 		}
 		if e.timeout != 0 {
-			conn.SetReadDeadline(time.Now().Add(e.timeout))
-			conn.SetWriteDeadline(time.Now().Add(e.timeout))
+			deadline := time.Now().Add(e.timeout)
+			checkErr(conn.SetReadDeadline(deadline))
+			checkErr(conn.SetWriteDeadline(deadline))
 		}
 		r := bufio.NewReader(conn)
 		w := bufio.NewWriter(conn)
