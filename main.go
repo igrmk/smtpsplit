@@ -48,6 +48,8 @@ func envelopeFactory(
 	routes map[string]string,
 	timeout time.Duration,
 	host string,
+	tls *tls.Config,
+	debug bool,
 ) func(
 	smtpd.Connection,
 	smtpd.MailAddress,
@@ -64,6 +66,8 @@ func envelopeFactory(
 			routes:        routes,
 			timeout:       timeout,
 			host:          host,
+			tls:           tls,
+			debug:         debug,
 		}, nil
 	}
 }
@@ -90,7 +94,7 @@ func main() {
 	smtp := &smtpd.Server{
 		Hostname:     w.cfg.Host,
 		Addr:         w.cfg.ListenAddress,
-		OnNewMail:    envelopeFactory(w.cfg.Routes, w.timeout, w.cfg.Host),
+		OnNewMail:    envelopeFactory(w.cfg.Routes, w.timeout, w.cfg.Host, w.tls, w.cfg.Debug),
 		TLSConfig:    w.tls,
 		Log:          lsmtpd,
 		ReadTimeout:  w.timeout,

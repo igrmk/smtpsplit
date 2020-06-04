@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"io"
 	"net"
 	"net/smtp"
@@ -26,6 +27,14 @@ type env struct {
 	size              *int
 	timeout           time.Duration
 	host              string
+	tls               *tls.Config
+	debug             bool
+}
+
+func (e *env) ldbg(format string, args ...interface{}) {
+	if e.debug {
+		ldbg(format, args...)
+	}
 }
 
 // AddRecipient implements smtpd.Envelope.AddRecipient
@@ -46,6 +55,9 @@ func (e *env) BeginData() error {
 		return err
 	}
 	if err := e.forAllSessions(sendHello); err != nil {
+		return err
+	}
+	if err := e.forAllSessions(startTLS); err != nil {
 		return err
 	}
 	if err := e.forAllSessions(sendMail); err != nil {
@@ -128,6 +140,18 @@ func sendHello(e *env, s *sess) error {
 		lerr("could not send HELO, %v", err)
 		return notResponding
 	}
+	e.ldbg("HELO OK")
+	return nil
+}
+
+func startTLS(e *env, s *sess) error {
+	if ok, _ := s.client.Extension("STARTTLS"); ok {
+		if err := s.client.StartTLS(e.tls); err != nil {
+			lerr("could not send START TLS, %v", err)
+			return notResponding
+		}
+	}
+	e.ldbg("TLS OK")
 	return nil
 }
 
@@ -136,7 +160,7 @@ func sendMail(e *env, s *sess) error {
 		lerr("could not send MAIL, %v", err)
 		return notResponding
 	}
-	ldbg("MAIL OK")
+	e.ldbg("MAIL OK")
 	return nil
 }
 
@@ -147,18 +171,18 @@ func sendRcpts(e *env, s *sess) error {
 			return notResponding
 		}
 	}
-	ldbg("RCPT OK")
+	e.ldbg("RCPT OK")
 	return nil
 }
 
-func beginData(_ *env, s *sess) error {
+func beginData(e *env, s *sess) error {
 	cw, err := s.client.Data()
 	if err != nil {
 		lerr("could not send DATA, %v", err)
 		return notResponding
 	}
 	s.data = cw
-	ldbg("DATA OK")
+	e.ldbg("DATA OK")
 	return nil
 }
 
