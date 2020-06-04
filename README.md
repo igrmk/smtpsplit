@@ -4,8 +4,10 @@ smtpsplit
 [![Build Status](https://travis-ci.org/igrmk/smtpsplit.png)](https://travis-ci.org/igrmk/smtpsplit)
 [![GoReportCard](http://goreportcard.com/badge/igrmk/smtpsplit)](http://goreportcard.com/report/igrmk/smtpsplit)
 
-This is simple SMTP router and splitter. It routes the incoming traffic depending on a recipient domain.
-It supports STARTTLS for both incoming and outgoing connections.
+This is simple SMTP router and splitter. It is designed for an incoming mail.
+It routes the incoming traffic depending on a recipient domain.
+For example you can process several mail subdomains via different SMTP servers on a single machine.
+STARTTLS is supported for both incoming and outgoing connections.
 
 Usage
 -----
