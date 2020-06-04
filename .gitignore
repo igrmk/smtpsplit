@@ -19,3 +19,4 @@ sendemail
 *.crt
 *.csr
 *.key
+.idea
