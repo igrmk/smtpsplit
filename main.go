@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"math/rand"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -21,9 +20,9 @@ func checkErr(err error) {
 }
 
 type worker struct {
-	cfg    *config
-	client *http.Client
-	tls    *tls.Config
+	cfg     *config
+	tls     *tls.Config
+	timeout time.Duration
 }
 
 func newWorker() *worker {
@@ -31,10 +30,10 @@ func newWorker() *worker {
 		panic("usage: smtpsplit <config>")
 	}
 	cfg := readConfig(os.Args[1])
-	client := &http.Client{Timeout: time.Second * time.Duration(cfg.TimeoutSeconds)}
+	timeout := time.Second * time.Duration(cfg.TimeoutSeconds)
 	w := &worker{
-		cfg:    cfg,
-		client: client,
+		cfg:     cfg,
+		timeout: timeout,
 	}
 	if cfg.Certificate != "" {
 		tls, err := loadTLS(cfg.Certificate, cfg.CertificateKey)
@@ -45,13 +44,14 @@ func newWorker() *worker {
 	return w
 }
 
-func envelopeFactory(routes map[string]string) func(smtpd.Connection, smtpd.MailAddress, *int) (smtpd.Envelope, error) {
+func envelopeFactory(routes map[string]string, timeout time.Duration) func(smtpd.Connection, smtpd.MailAddress, *int) (smtpd.Envelope, error) {
 	return func(c smtpd.Connection, from smtpd.MailAddress, size *int) (smtpd.Envelope, error) {
 		return &env{
 			BasicEnvelope: &smtpd.BasicEnvelope{},
 			from:          from,
 			size:          size,
 			routes:        routes,
+			timeout:       timeout,
 		}, nil
 	}
 }
@@ -76,11 +76,13 @@ func main() {
 	w.logConfig()
 
 	smtp := &smtpd.Server{
-		Hostname:  w.cfg.Host,
-		Addr:      w.cfg.ListenAddress,
-		OnNewMail: envelopeFactory(w.cfg.Routes),
-		TLSConfig: w.tls,
-		Log:       lsmtpd,
+		Hostname:     w.cfg.Host,
+		Addr:         w.cfg.ListenAddress,
+		OnNewMail:    envelopeFactory(w.cfg.Routes, w.timeout),
+		TLSConfig:    w.tls,
+		Log:          lsmtpd,
+		ReadTimeout:  w.timeout,
+		WriteTimeout: w.timeout,
 	}
 	go func() {
 		err := smtp.ListenAndServe()

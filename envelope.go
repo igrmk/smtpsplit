@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/igrmk/go-smtpd/smtpd"
 )
@@ -23,6 +24,7 @@ type env struct {
 	routes            map[string]string
 	size              *int
 	connected         bool
+	timeout           time.Duration
 }
 
 // Close implements smtpd.Envelope.Close
@@ -56,10 +58,14 @@ func (e *env) connect() error {
 	}
 	sessions := make(map[string]sess)
 	for s, h := range servers {
-		conn, err := net.Dial("tcp", s)
+		conn, err := net.DialTimeout("tcp", s, e.timeout)
 		if err != nil {
 			lerr("could not dial, %v", err)
 			return smtpd.SMTPError("441 Server is not responding")
+		}
+		if e.timeout != 0 {
+			conn.SetReadDeadline(time.Now().Add(e.timeout))
+			conn.SetWriteDeadline(time.Now().Add(e.timeout))
 		}
 		r := bufio.NewReader(conn)
 		w := bufio.NewWriter(conn)

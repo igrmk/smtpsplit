@@ -11,7 +11,7 @@ import (
 type config struct {
 	ListenAddress  string            `json:"listen_address"`  // the address to listen to incoming mail
 	Host           string            `json:"host"`            // the host name for the email addresses
-	TimeoutSeconds int               `json:"timeout_seconds"` // HTTP timeout
+	TimeoutSeconds int               `json:"timeout_seconds"` // the timeout
 	Debug          bool              `json:"debug"`           // debug mode
 	Certificate    string            `json:"certificate"`     // the certificate path for STARTTLS
 	CertificateKey string            `json:"certificate_key"` // the certificate key path for STARTTLS
@@ -37,10 +37,10 @@ func parseConfig(r io.Reader) *config {
 
 func checkConfig(cfg *config) error {
 	if cfg.ListenAddress == "" {
-		return errors.New("configure mail_address")
+		return errors.New("configure listen_address")
 	}
-	if cfg.TimeoutSeconds == 0 {
-		return errors.New("configure timeout_seconds")
+	if cfg.Routes == nil {
+		return errors.New("configure routes")
 	}
 	return nil
 }
