@@ -96,7 +96,12 @@ func (e *env) Write(line []byte) error {
 		}
 	}
 	for _, sess := range e.domainToSess {
+		ldbg("sending data line to all")
 		if _, err := sess.writer.Write(line); err != nil {
+			lerr("could not write, %v", err)
+			return smtpd.SMTPError("441 Server is not responding")
+		}
+		if _, err := sess.writer.WriteString("\n\r"); err != nil {
 			lerr("could not write, %v", err)
 			return smtpd.SMTPError("441 Server is not responding")
 		}
