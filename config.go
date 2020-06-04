@@ -9,9 +9,9 @@ import (
 )
 
 type config struct {
-	ListenAddress  string            `json:"listen_address"`  // the address to listen to incoming mail
-	Host           string            `json:"host"`            // the host name for the email addresses
-	TimeoutSeconds int               `json:"timeout_seconds"` // the timeout
+	ListenAddress  string            `json:"listen_address"`  // the address to listen to for incoming emails
+	Host           string            `json:"host"`            // the host name used to introduce this router
+	TimeoutSeconds int               `json:"timeout_seconds"` // the timeout for incoming and outgoing emails
 	Debug          bool              `json:"debug"`           // debug mode
 	Certificate    string            `json:"certificate"`     // the certificate path for STARTTLS
 	CertificateKey string            `json:"certificate_key"` // the certificate key path for STARTTLS
