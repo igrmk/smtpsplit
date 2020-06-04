@@ -145,11 +145,15 @@ func sendHello(e *env, s *sess) error {
 }
 
 func startTLS(e *env, s *sess) error {
-	if ok, _ := s.client.Extension("STARTTLS"); ok {
-		if err := s.client.StartTLS(e.tlsConfig); err != nil {
-			lerr("could not send START TLS, %v", err)
-			return notResponding
-		}
+	if e.tlsConfig == nil {
+		return nil
+	}
+	if ok, _ := s.client.Extension("STARTTLS"); !ok {
+		return nil
+	}
+	if err := s.client.StartTLS(e.tlsConfig); err != nil {
+		lerr("could not send START TLS, %v", err)
+		return notResponding
 	}
 	e.ldbg("TLS OK")
 	return nil
