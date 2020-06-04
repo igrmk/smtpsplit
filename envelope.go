@@ -23,7 +23,6 @@ type env struct {
 	domainToRecipient map[string][]string
 	routes            map[string]string
 	size              *int
-	connected         bool
 	timeout           time.Duration
 }
 
@@ -72,7 +71,12 @@ func (e *env) connect() error {
 		sessions[h] = sess{rwc: conn, reader: r, writer: w}
 	}
 	e.domainToSess = sessions
-	if err := e.sendToAll("HELO", "220"); err != nil {
+	for _, sess := range e.domainToSess {
+		if err := checkOK(sess.reader, "220"); err != nil {
+			return err
+		}
+	}
+	if err := e.sendToAll("HELO", "250"); err != nil {
 		return err
 	}
 	if err := e.sendFrom(); err != nil {
@@ -84,24 +88,22 @@ func (e *env) connect() error {
 	if err := e.sendToAll("DATA", "354"); err != nil {
 		return err
 	}
-	e.connected = true
+	return nil
+}
+
+// BeginData implements smtpd.Envelope.BeginData
+func (e *env) BeginData() error {
+	if err := e.connect(); err != nil {
+		return err
+	}
 	return nil
 }
 
 // Write implements smtpd.Envelope.Write
 func (e *env) Write(line []byte) error {
-	if !e.connected {
-		if err := e.connect(); err != nil {
-			return err
-		}
-	}
 	for _, sess := range e.domainToSess {
-		ldbg("sending data line to all")
+		ldbg("sending data line to all: %q", line)
 		if _, err := sess.writer.Write(line); err != nil {
-			lerr("could not write, %v", err)
-			return smtpd.SMTPError("441 Server is not responding")
-		}
-		if _, err := sess.writer.WriteString("\n\r"); err != nil {
 			lerr("could not write, %v", err)
 			return smtpd.SMTPError("441 Server is not responding")
 		}
@@ -167,8 +169,8 @@ func (e *env) sendRecepients() error {
 	for d, rs := range e.domainToRecipient {
 		sess := e.domainToSess[d]
 		for _, r := range rs {
-			text := fmt.Sprintf("RCPT TO:<%s>", r)
-			ldbg("sending recipient: %s", text)
+			text := fmt.Sprintf("RCPT TO:<%s>\r\n", r)
+			ldbg("sending recipient: %q", text)
 			if _, err := sess.writer.Write([]byte(text)); err != nil {
 				lerr("could not write data, %v", err)
 				return smtpd.SMTPError("441 Server is not responding")
