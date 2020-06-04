@@ -81,6 +81,9 @@ func (e *env) connect() error {
 	if err := e.sendRecepients(); err != nil {
 		return err
 	}
+	if err := e.sendToAll("DATA", "354"); err != nil {
+		return err
+	}
 	e.connected = true
 	return nil
 }
