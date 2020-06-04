@@ -42,7 +42,7 @@ func (e *env) AddRecipient(rcpt smtpd.MailAddress) error {
 
 // BeginData implements smtpd.Envelope.BeginData
 func (e *env) BeginData() error {
-	if err := e.initServers(); err != nil {
+	if err := e.initSessions(); err != nil {
 		return err
 	}
 	if err := e.forAllSessions(sendHello); err != nil {
@@ -92,16 +92,16 @@ func (e *env) forAllSessions(f func(*env, *sess) error) error {
 	return nil
 }
 
-func (e *env) initServers() error {
-	servers := make(map[string]string)
-	for d := range e.domainToRecipient {
-		server := e.routes[d]
+func (e *env) initSessions() error {
+	addresses := make(map[string]string)
+	for domain := range e.domainToRecipient {
+		server := e.routes[domain]
 		if server != "" {
-			servers[server] = d
+			addresses[server] = domain
 		}
 	}
 	sessions := make(map[string]*sess)
-	for s, domain := range servers {
+	for s, domain := range addresses {
 		conn, err := net.DialTimeout("tcp", s, e.timeout)
 		if err != nil {
 			lerr("could not dial, %v", err)
