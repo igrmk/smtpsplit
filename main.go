@@ -47,7 +47,7 @@ func envelopeFactory(
 	routes map[string]string,
 	timeout time.Duration,
 	host string,
-	tls *tls.Config,
+	tlsConfig *tls.Config,
 	debug bool,
 ) func(
 	smtpd.Connection,
@@ -65,7 +65,7 @@ func envelopeFactory(
 			routes:        routes,
 			timeout:       timeout,
 			host:          host,
-			tlsConfig:           tls,
+			tlsConfig:     tlsConfig,
 			debug:         debug,
 		}, nil
 	}
