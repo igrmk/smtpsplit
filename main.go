@@ -44,7 +44,18 @@ func newWorker() *worker {
 	return w
 }
 
-func envelopeFactory(routes map[string]string, timeout time.Duration) func(smtpd.Connection, smtpd.MailAddress, *int) (smtpd.Envelope, error) {
+func envelopeFactory(
+	routes map[string]string,
+	timeout time.Duration,
+	host string,
+) func(
+	smtpd.Connection,
+	smtpd.MailAddress,
+	*int,
+) (
+	smtpd.Envelope,
+	error,
+) {
 	return func(c smtpd.Connection, from smtpd.MailAddress, size *int) (smtpd.Envelope, error) {
 		return &env{
 			BasicEnvelope: &smtpd.BasicEnvelope{},
@@ -52,6 +63,7 @@ func envelopeFactory(routes map[string]string, timeout time.Duration) func(smtpd
 			size:          size,
 			routes:        routes,
 			timeout:       timeout,
+			host:          host,
 		}, nil
 	}
 }
@@ -78,7 +90,7 @@ func main() {
 	smtp := &smtpd.Server{
 		Hostname:     w.cfg.Host,
 		Addr:         w.cfg.ListenAddress,
-		OnNewMail:    envelopeFactory(w.cfg.Routes, w.timeout),
+		OnNewMail:    envelopeFactory(w.cfg.Routes, w.timeout, w.cfg.Host),
 		TLSConfig:    w.tls,
 		Log:          lsmtpd,
 		ReadTimeout:  w.timeout,

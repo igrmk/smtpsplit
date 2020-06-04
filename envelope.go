@@ -1,184 +1,31 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
+	"io"
 	"net"
-	"strings"
+	"net/smtp"
 	"time"
 
 	"github.com/igrmk/go-smtpd/smtpd"
 )
 
+var notResponding = smtpd.SMTPError("441 Server is not responding")
+
 type sess struct {
-	rwc    net.Conn
-	reader *bufio.Reader
-	writer *bufio.Writer
+	domain string
+	client *smtp.Client
+	data   io.WriteCloser
 }
 
 type env struct {
 	*smtpd.BasicEnvelope
 	from              smtpd.MailAddress
-	domainToSess      map[string]sess
+	domainToSess      map[string]*sess
 	domainToRecipient map[string][]string
 	routes            map[string]string
 	size              *int
 	timeout           time.Duration
-}
-
-// Close implements smtpd.Envelope.Close
-func (e *env) Close() error {
-	if err := e.sendToAll(".", "250"); err != nil {
-		return err
-	}
-	if err := e.sendToAll("QUIT", "221"); err != nil {
-		return err
-	}
-	for _, sess := range e.domainToSess {
-		if err := sess.writer.Flush(); err != nil {
-			lerr("could not flush data, %v", err)
-			return smtpd.SMTPError("441 Server is not responding")
-		}
-		if err := sess.rwc.Close(); err != nil {
-			lerr("could not close connection, %v", err)
-			return smtpd.SMTPError("441 Server is not responding")
-		}
-	}
-	return nil
-}
-
-// BeginData implements smtpd.Envelope.BeginData
-func (e *env) BeginData() error {
-	servers := make(map[string]string)
-	for d := range e.domainToRecipient {
-		server := e.routes[d]
-		if server != "" {
-			servers[server] = d
-		}
-	}
-	sessions := make(map[string]sess)
-	for s, h := range servers {
-		conn, err := net.DialTimeout("tcp", s, e.timeout)
-		if err != nil {
-			lerr("could not dial, %v", err)
-			return smtpd.SMTPError("441 Server is not responding")
-		}
-		if e.timeout != 0 {
-			deadline := time.Now().Add(e.timeout)
-			checkErr(conn.SetReadDeadline(deadline))
-			checkErr(conn.SetWriteDeadline(deadline))
-		}
-		r := bufio.NewReader(conn)
-		w := bufio.NewWriter(conn)
-		sessions[h] = sess{rwc: conn, reader: r, writer: w}
-	}
-	e.domainToSess = sessions
-	for _, sess := range e.domainToSess {
-		if err := checkOK(sess.reader, "220"); err != nil {
-			return err
-		}
-	}
-	if err := e.sendToAll("HELO", "250"); err != nil {
-		return err
-	}
-	if err := e.sendFrom(); err != nil {
-		return err
-	}
-	if err := e.sendRecepients(); err != nil {
-		return err
-	}
-	if err := e.sendToAll("DATA", "354"); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Write implements smtpd.Envelope.Write
-func (e *env) Write(line []byte) error {
-	for _, sess := range e.domainToSess {
-		ldbg("sending data line to all: %q", line)
-		if _, err := sess.writer.Write(line); err != nil {
-			lerr("could not write, %v", err)
-			return smtpd.SMTPError("441 Server is not responding")
-		}
-	}
-	return nil
-}
-
-func (e *env) sendToAll(text string, code string) error {
-	text += "\r\n"
-	ldbg("send to all: %q", text)
-	for _, sess := range e.domainToSess {
-		if _, err := sess.writer.Write([]byte(text)); err != nil {
-			lerr("could not write, %v", err)
-			return smtpd.SMTPError("441 Server is not responding")
-		}
-		if err := sess.writer.Flush(); err != nil {
-			lerr("could not flush data, %v", err)
-			return smtpd.SMTPError("441 Server is not responding")
-		}
-		if err := checkOK(sess.reader, code); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func checkOK(r *bufio.Reader, code string) error {
-	for {
-		s, err := r.ReadString('\n')
-		if err != nil {
-			lerr("could not read data, %v", err)
-			return smtpd.SMTPError("441 Server is not responding")
-		}
-		ldbg("got: %q", s)
-		if strings.HasPrefix(s, code+"-") {
-			continue
-		}
-		if !strings.HasPrefix(s, code) {
-			lerr("server returned error %q", s)
-			return smtpd.SMTPError(s)
-		}
-		return nil
-	}
-}
-
-func (e *env) sendFrom() error {
-	var text string
-	if e.size != nil {
-		text = fmt.Sprintf("MAIL FROM:<%s> %d", e.from, *e.size)
-	} else {
-		text = fmt.Sprintf("MAIL FROM:<%s>", e.from)
-	}
-	if err := e.sendToAll(text, "250"); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (e *env) sendRecepients() error {
-	if e.domainToRecipient == nil {
-		return nil
-	}
-	for d, rs := range e.domainToRecipient {
-		sess := e.domainToSess[d]
-		for _, r := range rs {
-			text := fmt.Sprintf("RCPT TO:<%s>\r\n", r)
-			ldbg("sending recipient: %q", text)
-			if _, err := sess.writer.Write([]byte(text)); err != nil {
-				lerr("could not write data, %v", err)
-				return smtpd.SMTPError("441 Server is not responding")
-			}
-			if err := sess.writer.Flush(); err != nil {
-				lerr("could not flush data, %v", err)
-				return smtpd.SMTPError("441 Server is not responding")
-			}
-			if err := checkOK(sess.reader, "250"); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+	host              string
 }
 
 // AddRecipient implements smtpd.Envelope.AddRecipient
@@ -186,18 +33,143 @@ func (e *env) AddRecipient(rcpt smtpd.MailAddress) error {
 	if e.domainToRecipient == nil {
 		e.domainToRecipient = make(map[string][]string)
 	}
-	_, domain := splitAddress(rcpt.Email())
+	domain := rcpt.Hostname()
 	if _, ok := e.routes[domain]; ok {
 		e.domainToRecipient[domain] = append(e.domainToRecipient[domain], rcpt.Email())
 	}
 	return e.BasicEnvelope.AddRecipient(rcpt)
 }
 
-func splitAddress(a string) (string, string) {
-	a = strings.ToLower(a)
-	parts := strings.Split(a, "@")
-	if len(parts) != 2 {
-		return "", ""
+// BeginData implements smtpd.Envelope.BeginData
+func (e *env) BeginData() error {
+	if err := e.initServers(); err != nil {
+		return err
 	}
-	return parts[0], parts[1]
+	if err := e.forAllSessions(sendHello); err != nil {
+		return err
+	}
+	if err := e.forAllSessions(sendMail); err != nil {
+		return err
+	}
+	if err := e.forAllSessions(sendRcpts); err != nil {
+		return err
+	}
+	if err := e.forAllSessions(beginData); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Write implements smtpd.Envelope.Write
+func (e *env) Write(line []byte) error {
+	appendData := func(_ *env, s *sess) error {
+		if _, err := s.data.Write(line); err != nil {
+			lerr("could not send DATA, %v", err)
+			return notResponding
+		}
+		return nil
+	}
+	if err := e.forAllSessions(appendData); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Close implements smtpd.Envelope.Close
+func (e *env) Close() error {
+	if err := e.forAllSessions(closeConnection); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (e *env) forAllSessions(f func(*env, *sess) error) error {
+	for _, sess := range e.domainToSess {
+		if err := f(e, sess); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e *env) initServers() error {
+	servers := make(map[string]string)
+	for d := range e.domainToRecipient {
+		server := e.routes[d]
+		if server != "" {
+			servers[server] = d
+		}
+	}
+	sessions := make(map[string]*sess)
+	for s, domain := range servers {
+		conn, err := net.DialTimeout("tcp", s, e.timeout)
+		if err != nil {
+			lerr("could not dial, %v", err)
+			return notResponding
+		}
+		if e.timeout != 0 {
+			deadline := time.Now().Add(e.timeout)
+			checkErr(conn.SetReadDeadline(deadline))
+			checkErr(conn.SetWriteDeadline(deadline))
+		}
+		client, err := smtp.NewClient(conn, domain)
+		if err != nil {
+			lerr("server is not responding", err)
+			return notResponding
+		}
+		sessions[domain] = &sess{client: client, domain: domain}
+	}
+	e.domainToSess = sessions
+	return nil
+}
+
+func sendHello(e *env, s *sess) error {
+	if err := s.client.Hello(e.host); err != nil {
+		lerr("could not send HELO, %v", err)
+		return notResponding
+	}
+	return nil
+}
+
+func sendMail(e *env, s *sess) error {
+	if err := s.client.Mail(e.from.Email()); err != nil {
+		lerr("could not send MAIL, %v", err)
+		return notResponding
+	}
+	ldbg("MAIL OK")
+	return nil
+}
+
+func sendRcpts(e *env, s *sess) error {
+	for _, r := range e.domainToRecipient[s.domain] {
+		if err := s.client.Rcpt(r); err != nil {
+			lerr("could not send RCPT, %v", err)
+			return notResponding
+		}
+	}
+	ldbg("RCPT OK")
+	return nil
+}
+
+func beginData(_ *env, s *sess) error {
+	cw, err := s.client.Data()
+	if err != nil {
+		lerr("could not send DATA, %v", err)
+		return notResponding
+	}
+	s.data = cw
+	ldbg("DATA OK")
+	return nil
+}
+
+func closeConnection(_ *env, s *sess) error {
+	if err := s.data.Close(); err != nil {
+		lerr("could not flush data, %v", err)
+		return notResponding
+	}
+	if err := s.client.Quit(); err != nil {
+		lerr("could not send QUIT, %v", err)
+		return notResponding
+	}
+	return nil
 }
