@@ -47,7 +47,8 @@ func (e *env) Close() error {
 	return nil
 }
 
-func (e *env) connect() error {
+// BeginData implements smtpd.Envelope.BeginData
+func (e *env) BeginData() error {
 	servers := make(map[string]string)
 	for d := range e.domainToRecipient {
 		server := e.routes[d]
@@ -87,14 +88,6 @@ func (e *env) connect() error {
 		return err
 	}
 	if err := e.sendToAll("DATA", "354"); err != nil {
-		return err
-	}
-	return nil
-}
-
-// BeginData implements smtpd.Envelope.BeginData
-func (e *env) BeginData() error {
-	if err := e.connect(); err != nil {
 		return err
 	}
 	return nil
