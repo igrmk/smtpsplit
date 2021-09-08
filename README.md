@@ -2,7 +2,7 @@ smtpsplit
 =========
 
 [![Build Status](https://travis-ci.org/igrmk/smtpsplit.png)](https://travis-ci.org/igrmk/smtpsplit)
-[![GoReportCard](http://goreportcard.com/badge/igrmk/smtpsplit)](http://goreportcard.com/report/igrmk/smtpsplit)
+[![GoReportCard](https://goreportcard.com/badge/igrmk/smtpsplit)](https://goreportcard.com/report/igrmk/smtpsplit)
 
 This is simple SMTP router and splitter. It is designed for an incoming mail.
 It routes the incoming traffic depending on a recipient domain.
